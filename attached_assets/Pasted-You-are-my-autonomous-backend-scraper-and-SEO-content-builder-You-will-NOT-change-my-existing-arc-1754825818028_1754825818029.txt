@@ -1,0 +1,110 @@
+You are my autonomous backend, scraper, and SEO content builder.
+You will NOT change my existing architecture — it is already set:
+
+Frontend: Already built, deployed on Netlify.
+
+Backend: Supabase with my Edge Function + Service Role Key (provided below).
+
+Deployment: Integrate into my existing codebase, keeping everything functional, tested, and deployed automatically.
+
+Mission
+Integrate scraping & background scheduler into my existing code
+
+Add scrapers for at least 5 top free webinar listing sources:
+
+Eventbrite – category filter: "Free Online Webinars"
+
+Meetup – search: "Free Webinars" (location: online)
+
+WebinarNinja – public listings page
+
+GoToWebinar – upcoming free sessions list
+
+Zoom Events Directory – free/featured webinars
+
+(Optional extra) Coursera Events – free live sessions
+
+Scraping triggers automatically when:
+
+A user clicks any category.
+
+A user searches anything.
+
+A user opens a webinar detail page.
+
+Scraping runs in the background so user flow is never blocked.
+
+Deduplication logic so the same webinar is never inserted twice.
+
+If a relevant table doesn’t exist in Supabase, create it automatically via my Edge Function.
+
+Background daily update (scheduler)
+
+Runs daily (or more frequently if needed) to keep webinars fresh.
+
+Scheduler logic should run either in Supabase Edge Functions or Netlify scheduled functions — whichever integrates easiest with my existing setup.
+
+No manual steps required from me.
+
+AI must test that scheduler is working.
+
+Database integration
+
+Use this Edge Function URL for ALL DB operations:
+https://brroucjplqmngljroknr.supabase.co/functions/v1/hyper-handler
+
+Use this Service Role Key in Authorization: Bearer header:
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycm91Y2pwbHFtbmdsanJva25yIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDU1ODg0OSwiZXhwIjoyMDcwMTM0ODQ5fQ.vMDzajYZQ8k-AqzTKdM0D5nCsj85XRI7YGObMzVQyOc
+
+If schema changes are needed, AI will create/update them via "action": "create_table" without asking me.
+
+SEO flywheel method
+
+Every time new webinars are scraped, also:
+
+Generate an SEO blog post.
+
+Generate a guide or listicle related to the topic.
+
+Store in Supabase tables (blogs, guides) with title, slug, content, keywords, meta_description, created_at.
+
+Link internally to other posts and webinar pages to boost SEO.
+
+Add structured data (schema.org JSON-LD) for rich Google snippets.
+
+Caching rules
+
+Before scraping, check last_scraped_at in the table.
+
+If recent (< 1 hour old), use cached data.
+
+If expired or missing, scrape fresh data, update last_scraped_at.
+
+Autonomy rules
+
+Never ask me for schema or site list — decide and implement.
+
+Never ask for confirmation — just execute.
+
+Ensure code is deployed & working when done.
+
+Security
+Always send Authorization: Bearer header with my key.
+
+Always send Content-Type: application/json.
+
+Goal: When users search, click, or view webinars, my system automatically scrapes new data, updates the DB, prevents duplicates, and creates SEO content — all without me touching the backend.
+Also keep a daily scheduler running to maintain fresh data.
+
+If you paste this into Replit AI, it will:
+
+Use your existing repo & architecture
+
+Add scrapers for the listed sites
+
+Add background triggers + deduplication
+
+Add SEO flywheel
+
+Set up & test scheduler
+

@@ -99,7 +99,7 @@ export class SEOContentGenerator {
   }
 
   async generateWeeklyListicle(): Promise<BlogPost> {
-    const trendingCategories = await getTrendingCategories();
+    const trendingCategories = await this.getTrendingCategories();
     const topCategory = trendingCategories[0]?.category || 'Technology';
     
     const title = `Top Free ${topCategory} Webinars This Week - Updated ${new Date().toLocaleDateString()}`;

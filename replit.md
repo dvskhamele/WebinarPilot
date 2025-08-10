@@ -39,9 +39,11 @@ Preferred communication style: Simple, everyday language.
 - **Future-Ready**: Architecture supports integration with proper authentication providers
 
 ### External Dependencies
-- **Database Provider**: Neon Database for PostgreSQL hosting with serverless scaling
+- **Database Provider**: Supabase with Edge Functions for PostgreSQL hosting and serverless operations
 - **UI Components**: Radix UI for accessible component primitives
 - **Video Conferencing**: Google Meet integration for webinar sessions
+- **Web Scraping**: Multi-source scraping system (Eventbrite, Meetup, Devpost, Luma)
+- **SEO Content**: Automated blog and guide generation for organic traffic growth
 - **Deployment**: Configured for Replit deployment with Vite build system
 - **Development Tools**: ESBuild for server bundling and TypeScript compilation
 
@@ -58,3 +60,9 @@ Preferred communication style: Simple, everyday language.
 **Schema-First Validation**: Zod schemas are used throughout the application for both client and server-side validation, ensuring data consistency and type safety across the entire stack.
 
 **Development Experience**: The setup prioritizes developer experience with hot reload, TypeScript support, and comprehensive tooling for both frontend and backend development.
+
+**Automated Content Discovery**: The platform features a comprehensive web scraping system that automatically discovers new webinars from major platforms (Eventbrite, Meetup, Devpost, Luma) triggered by user interactions such as category browsing, search queries, and webinar detail views.
+
+**SEO Content Flywheel**: An automated content generation system creates weekly listicles, how-to guides, and topic-based articles to drive organic traffic, with internal linking and structured data optimization for search engines.
+
+**Background Processing**: All scraping and content generation operations run asynchronously without impacting user experience, featuring intelligent caching, deduplication, and daily automation scheduling.

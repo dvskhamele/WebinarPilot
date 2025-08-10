@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserRegistrationSchema, insertGoogleMeetSessionSchema } from "@shared/schema";
 import { z } from "zod";
+import { WebinarScheduler } from "./scrapers/scheduler";
 
 const registrationRequestSchema = z.object({
   type: z.literal("registration"),
@@ -19,23 +20,41 @@ const reminderRequestSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get all webinars
+  // Initialize scheduler
+  const scheduler = new WebinarScheduler();
+  scheduler.startScheduler();
+
+  // Get all webinars (with background scraping trigger)
   app.get("/api/webinars", async (req, res) => {
     try {
       const webinars = await storage.getWebinars();
+      
+      // Trigger background scraping for general webinars
+      scheduler.handleUserTrigger().catch(err => 
+        console.error('Background scrape failed:', err)
+      );
+      
       res.json(webinars);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch webinars" });
     }
   });
 
-  // Get single webinar
+  // Get single webinar (with category-based scraping trigger)
   app.get("/api/webinars/:id", async (req, res) => {
     try {
       const webinar = await storage.getWebinar(req.params.id);
       if (!webinar) {
         return res.status(404).json({ error: "Webinar not found" });
       }
+      
+      // Trigger background scraping based on webinar category
+      if (webinar.category) {
+        scheduler.handleUserTrigger(webinar.category).catch(err => 
+          console.error('Category-based scrape failed:', err)
+        );
+      }
+      
       res.json(webinar);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch webinar" });
@@ -150,6 +169,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch all registrations" });
+    }
+  });
+
+  // Category-based webinar search (triggers background scraping)
+  app.get("/api/webinars/category/:category", async (req, res) => {
+    try {
+      const category = req.params.category;
+      const webinars = await storage.getWebinars();
+      const categoryWebinars = webinars.filter(w => 
+        w.category?.toLowerCase() === category.toLowerCase()
+      );
+
+      // Trigger background scraping for this category
+      scheduler.handleUserTrigger(category).catch(err => 
+        console.error('Category scrape failed:', err)
+      );
+
+      res.json(categoryWebinars);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch category webinars" });
+    }
+  });
+
+  // Search webinars (triggers background scraping)
+  app.get("/api/webinars/search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query) {
+        return res.status(400).json({ error: "Search query required" });
+      }
+
+      const webinars = await storage.getWebinars();
+      const searchResults = webinars.filter(w => 
+        w.title?.toLowerCase().includes(query.toLowerCase()) ||
+        w.description?.toLowerCase().includes(query.toLowerCase()) ||
+        w.host?.toLowerCase().includes(query.toLowerCase())
+      );
+
+      // Trigger background scraping for search keyword
+      scheduler.handleUserTrigger(undefined, query).catch(err => 
+        console.error('Search scrape failed:', err)
+      );
+
+      res.json(searchResults);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to search webinars" });
+    }
+  });
+
+  // Manual scraper trigger endpoint
+  app.post("/api/scrape/trigger", async (req, res) => {
+    try {
+      const { category, keyword, force } = req.body;
+      
+      console.log('Manual scrape triggered:', { category, keyword, force });
+      
+      const result = await scheduler.orchestrator.scrapeAll({
+        category,
+        keyword,
+        triggerType: 'manual',
+        force: force || false
+      });
+
+      res.json({
+        success: true,
+        message: result.message,
+        totalNewWebinars: result.totalNewWebinars,
+        results: result.results
+      });
+    } catch (error) {
+      console.error('Manual scrape failed:', error);
+      res.status(500).json({ error: "Scrape failed", message: error.message });
     }
   });
 
