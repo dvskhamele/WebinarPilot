@@ -1,0 +1,209 @@
+You are an autonomous full-stack engineer and deployment agent. You have full access to the Replit environment (terminal, file system) and are authorized to create, test and deploy code. Your mission is to build a production-ready **Webinar Flywheel Platform** (frontend + backend + scrapers + SEO content generator + scheduler + monitoring) and deploy it automatically using the infra below.
+
+IMPORTANT: Use the following Supabase credentials & edge function for all DB operations and edge work.
+
+SUPABASE_URL=https://brroucjplqmngljroknr.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycm91Y2pwbHFtbmdsanJva25yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ1NTg4NDksImV4cCI6MjA3MDEzNDg0OX0.a9QHFs7JtfRM3y5pi82jqAFmrwDRuaPLwDUzeBlG7uE
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycm91Y2pwbHFtbmdsanJva25yIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDU1ODg0OSwiZXhwIjoyMDcwMTM0ODQ5fQ.vMDzajYZQ8k-AqzTKdM0D5nCsj85XRI7YGObMzVQyOc
+SUPABASE_FUNCTION_URL=https://brroucjplqmngljroknr.supabase.co/functions/v1/hyper-handler
+SUPABASE_APIKEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycm91Y2pwbHFtbmdsanJva25yIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDU1ODg0OSwiZXhwIjoyMDcwMTM0ODQ5fQ.vMDzajYZQ8k-AqzTKdM0D5nCsj85XRI7YGObMzVQyOc
+
+RULES FOR YOU (agent):
+- You MUST create runnable code (frontend + backend + scrapers + edge function) and test it inside this environment.
+- Use Supabase Edge Function URL for DB operations. All requests to Supabase must include:
+  Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
+  Content-Type: application/json
+- Implement automatic triggers (category click / search / webinar open) that launch a background scrape job.
+- Implement a daily scheduler + manual force-trigger endpoint that can run immediately for testing.
+- Prevent duplication using title + date + platform + source checksum logic.
+- Implement caching: if `last_fetched` for a query/scope is <1 hour, return cached results and skip scraping.
+- Provide logging in `scrape_logs` table and error reporting.
+- Create Netlify build hook integration so that after content insert (or every X new items) the frontend can rebuild (for SEO pages). Also support incremental publish without full rebuild where possible.
+- Produce a deployment README and provide live URLs after deploying to Netlify & Supabase (or instructions how you deployed them).
+- Make code modular so adding new sources is trivial (one function per source + a normalizer).
+
+ARCHITECTURE (deliver exactly):
+- Frontend: React (preferably Next.js if you must support SSG/SEO; if not possible on Netlify, use Gatsby or prerender + Netlify). Deploy on Netlify. Provide sitemap + JSON-LD pages for SEO.
+- Backend: Supabase (schema + edge functions). Put scrapers into edge functions or into a Node service that the edge function triggers (choose the best tradeoff; document reasoning).
+- Scraper engine: Node.js with adapters:
+  - Light scrapes: Cheerio + axios
+  - JS-heavy scrapes: Playwright (headless) with caching & rate-limits
+- Scheduler: Supabase scheduled function / Deno Cron inside edge functions OR external scheduler (Pipedream or Replit cron) if Supabase scheduler not available. Provide both options and implement at least one.
+- Deployment: Netlify (frontend) + Supabase (DB + edge functions). Use Netlify build hooks for SEO rebuild.
+
+DATABASE SCHEMA (create if missing via edge function calls):
+1) webinars
+- id uuid primary key default gen_random_uuid()
+- title text not null
+- date date
+- time text
+- platform text
+- link text
+- description text
+- category text
+- source text
+- checksum text -- hash(title+date+platform+source)
+- last_fetched timestamptz
+- created_at timestamptz default now()
+- updated_at timestamptz default now()
+
+2) scrape_logs
+- id uuid pk
+- run_time timestamptz default now()
+- source text
+- trigger_type text -- 'user_action'|'daily'|'manual'
+- category_or_keyword text
+- records_fetched int
+- status text
+- message text
+
+3) blogs (for SEO content)
+- id uuid
+- title text
+- slug text unique
+- content text
+- keywords text[]
+- meta_description text
+- created_at timestamptz default now()
+
+4) guides
+- id uuid
+- topic text
+- content text
+- seo_keywords text[]
+- created_at timestamptz default now()
+
+5) sales_funnel
+- id uuid
+- lead_name text
+- lead_email text
+- source text
+- funnel_stage text
+- created_at timestamptz default now()
+
+OPERATIONAL BEHAVIOR & API CONTRACTS:
+- Edge Function API shape (call hyper-handler):
+  * Create table:
+    { "action":"create_table", "table":"webinars", "schema":"(title text, date date, ...)" }
+  * Insert row:
+    { "action":"insert", "table":"webinars", "schema": { "title": "...", "date": "...", ... } }
+  * Query rows (edge function should accept a query action or provide a query endpoint):
+    { "action":"query", "table":"webinars", "where": { "category":"AI" }, "limit":50 }
+  * Manual trigger for scheduled scrape:
+    { "action":"trigger_scrape", "source":"eventbrite", "keyword":"python", "trigger_type":"manual" }
+
+SCRAPING SOURCES (minimum 10; implement adapters for each):
+1. Eventbrite
+2. Meetup
+3. Devpost
+4. Luma.events
+5. Airmeet
+6. Crowdcast
+7. BigMarker
+8. Hopin
+9. Eventzilla
+10. Facebook Events (public pages / keyword search)
+-- For each source, create an adapter that:
+   - fetches pages/event lists
+   - normalizes to our `webinars` schema
+   - computes checksum (SHA256 of title+date+platform+source)
+   - returns list of normalized items
+
+TRIGGERS (user interaction):
+- When user clicks a category (frontend):
+  - Fire API call to edge function: { action: "trigger_scrape", category: "CATEGORY_NAME", trigger_type: "user_action" }
+  - Edge function enqueues a background job (async) to scrape top sources for that category/keyword.
+  - Edge function returns cached results immediately if last_fetched < 1 hour; otherwise returns current stored items and triggers background update.
+- When user searches:
+  - Same flow with keyword.
+- When user opens a webinar detail:
+  - Use that webinar's category/tags to trigger similar-item scraping in background.
+
+DUPLICATE HANDLING:
+- Before insert: check webinars table where checksum = computed_checksum; if exists:
+   - if some fields changed (e.g., date), update row (updated_at, last_fetched).
+   - else skip insertion.
+- Ensure unique index on checksum column.
+
+CACHING (rules):
+- Each distinct query scope (category, keyword, platform filter) should have a `last_scraped_at` stored in a lookup table or use `MAX(last_fetched)` from webinars with that scope.
+- If last_scraped_at < 1 hour → return cached results; do not scrape.
+- Provide a manual force endpoint to bypass cache: action = trigger_scrape with force:true.
+
+SEO CONTENT GENERATION (Flywheel):
+- Every daily run aggregate trending webinar topics; auto-create:
+  - Weekly listicles (blogs table) — e.g., "Top Free AI Webinars This Week"
+  - How-to guides (guides table) from common webinar topics
+- For each generated blog/guide:
+  - Build semantic keyword cluster (primary, secondary, related keywords)
+  - Add JSON-LD schema (Event, Article)
+  - Save in blogs/guides table
+  - Trigger Netlify build hook to render new SEO page and update sitemap
+- Post cadence: generate 3 listicles/day and 1 long-form guide/day initially (adjustable).
+
+SEO KEYWORD PLAN (deliver in file / implementable):
+- Seed keyword clusters:
+  - "free webinars [topic]" (e.g., free webinars AI, free webinars marketing)
+  - "live classes [topic] free"
+  - "online webinar today free"
+  - long-tail: "free live python backend workshop for beginners 2025"
+- For each cluster: create 5 supporting blog posts, 10 internal links, and 1 pillar page.
+- Auto-generate meta description, OG tags, canonical tags. Provide sitemap.xml and robots.txt.
+
+FRONTEND PAGES & STRUCTURE (exact):
+1. Home: hero, category chips, latest webinars listing (paginated), blog highlights (listicles)
+2. Category page: /category/[slug] — lists category webinars, infinite scroll, triggers background scrape on first visit
+3. Search page: /search?q=... — shows combined results; triggers keyword scrape asynchronously
+4. Webinar detail: /webinar/[id] — event info, external link, "similar webinars" (from scraped data), triggers similar-item scrape
+5. Blogs list: /blogs — list of SEO articles
+6. Blog detail: /blog/[slug] — article HTML-LD, CTAs to capture email
+7. Landing pages + Funnels: /landing/[campaign] with lead capture forms
+8. Sitemap, RSS, OpenGraph meta
+
+FRONTEND BEHAVIOR:
+- All API calls go to your Netlify-hosted frontend -> call edge function endpoints (or direct Supabase client where appropriate) with apikey header as required.
+- When a user triggers a scraping event, UI shows immediate cached results (if any) and a “Fetching latest in background” subtle status.
+- When new data arrives, push update to UI via websocket or poll endpoint (short polling acceptable).
+
+SCHEDULER & TESTING:
+- Implement Supabase scheduled functions (or Deno Cron inside edge) + manual force endpoint.
+- Provide a "Test Runner" that runs all scrapers once and outputs a sample report (console + insert into scrape_logs).
+- Provide a lightweight harness script: `npm run test-scrapers` that runs all sources once and stores results.
+
+RATE LIMITS / BACKOFF:
+- Implement per-source rate-limits & exponential backoff.
+- Respect robots.txt; implement polite scraping delays and user agent string.
+- Log failures and retry policy.
+
+MONITORING & ALERTS:
+- Store error logs in `scrape_logs.message`
+- Send summary email (or Slack webhook) on daily job results. Provide optional integration points.
+
+DELIVERABLES (what you must output at end of run):
+1. Replit repo with frontend + backend + scrapers + README
+2. Scripts to deploy to Netlify (frontend) and Supabase (edge functions + migration SQL)
+3. A working test run showing sample scraped data inserted into Supabase (or simulated DB if live DB is blocked); if live DB is available (your credentials given), run against it.
+4. Netlify build hook URL and instruction to set it in Supabase edge function
+5. Manual trigger endpoint URL (edge function) for force scrapes
+6. SEO keyword plan file + page templates ready for SSG
+7. A one-click npm script or CLI in the Replit environment: `npm run deploy-all` that performs build & deploy of frontend and pushes edge functions to Supabase (attempt automatic deploy; if CLI blocked, produce exact commands and a GitHub Action you can push)
+
+SECURITY:
+- Never expose the service role key publicly in logs; use environment variables in Replit runtime only.
+- Use secrets in Netlify and Supabase for production.
+
+TESTING & ACCEPTANCE CRITERIA:
+- Running `npm run test-scrapers` returns > 5 normalized webinar items per source for at least 5 sources (or returns clear error logs respecting robots).
+- Triggering a category click sends a background scrape request and results are inserted into `webinars` (or logged branch if blocked).
+- Scheduled job runable instantly via the manual trigger endpoint.
+- Blogs/guides auto-generated and saved in DB.
+- Sitemap contains new blog pages.
+
+EXTRA (Optional but high value):
+- Netlify Edge Function or Cloudflare Worker that returns pre-rendered HTML for top SEO pages for instant indexability.
+- Incremental static regeneration (ISG) setup for Next.js to keep pages fresh without full rebuilds.
+
+Finally: implement everything, run the scrapers once (test-run), produce sample data, push edge functions to Supabase (using `supabase` CLI if available, or via REST `POST` to the functions endpoint if CLI is not available), deploy Netlify site (via Netlify CLI or GitHub Actions), and produce a single report with live URLs, DB table list, sample records, and the SEO plan summary.
+
+Do not ask me for clarification. Make reasonable assumptions where needed, document them, and implement them.
+
