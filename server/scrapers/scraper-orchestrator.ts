@@ -239,10 +239,15 @@ export class ScraperOrchestrator {
     for (const scraper of scrapersToRun) {
       try {
         console.log(`Running scraper: ${scraper['config']['name']}`);
-        const scrapedWebinars = await scraper.scrapeAndValidate();
+        // Use raw scraped data (includes registrationUrl and sourcePlatform)
+        const scrapedRaw = await scraper.scrapeWebinars();
+        // Validate locally (future events with required fields)
+        const validWebinars = scrapedRaw.filter(w =>
+          !!(w && w.title && w.host && w.dateTime && w.registrationUrl && new Date(w.dateTime) > new Date())
+        );
         
         let newCount = 0;
-        for (const webinar of scrapedWebinars) {
+        for (const webinar of validWebinars) {
           const supabaseWebinar = this.convertScrapedToSupabaseFormat(webinar);
           const isNew = await this.insertWebinar(supabaseWebinar);
           if (isNew) newCount++;
@@ -250,7 +255,7 @@ export class ScraperOrchestrator {
 
         const result: ScrapedResult = {
           source: scraper['config']['name'],
-          webinars: scrapedWebinars,
+          webinars: validWebinars,
           success: true,
           count: newCount
         };
@@ -265,7 +270,7 @@ export class ScraperOrchestrator {
           scope,
           newCount,
           'success',
-          `Successfully scraped ${scrapedWebinars.length} webinars, ${newCount} new`
+          `Successfully scraped ${validWebinars.length} webinars, ${newCount} new`
         );
 
       } catch (error) {
