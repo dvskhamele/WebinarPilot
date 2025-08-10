@@ -3,6 +3,10 @@
   publish = "dist/public"
   functions = "netlify/functions"
 
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--no-audit --no-fund"
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
