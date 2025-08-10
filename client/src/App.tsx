@@ -8,6 +8,7 @@ import { Navbar } from "@/components/navbar";
 import Home from "@/pages/home";
 import WebinarDetail from "@/pages/webinar-detail";
 import Dashboard from "@/pages/dashboard";
+import Admin from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 
 interface User {
@@ -70,6 +71,7 @@ function Router() {
               </div>
             )}
           </Route>
+          <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>
       </main>

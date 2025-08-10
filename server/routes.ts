@@ -126,6 +126,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint to get all registrations across all webinars
+  app.get("/api/admin/registrations", async (req, res) => {
+    try {
+      const webinars = await storage.getWebinars();
+      const allRegistrations = [];
+      
+      for (const webinar of webinars) {
+        const registrations = await storage.getUserRegistrations(webinar.id);
+        registrations.forEach(reg => {
+          allRegistrations.push({
+            ...reg,
+            webinarTitle: webinar.title,
+            webinarHost: webinar.host,
+            webinarDate: webinar.dateTime,
+          });
+        });
+      }
+      
+      res.json({
+        totalRegistrations: allRegistrations.length,
+        registrations: allRegistrations,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch all registrations" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
