@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { CATEGORIES } from '@/lib/constants';
+import { CATEGORIES, COMMUNITY_LINKS } from '@/lib/constants';
 
 export default function Verify() {
   const [loc, navigate] = useLocation();
@@ -13,6 +13,7 @@ export default function Verify() {
   const [selected, setSelected] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const communityUrl = COMMUNITY_LINKS.default;
 
   const toggleCat = (cat: string) => {
     setSelected((prev) => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
@@ -86,9 +87,10 @@ export default function Verify() {
 
       {message && <div className="text-sm text-gray-700">{message}</div>}
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 items-center">
         <Button onClick={verify} disabled={pending}>Verify & Save</Button>
         <Button variant="outline" onClick={() => navigate('/')}>Skip</Button>
+        <a className="ml-auto px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md font-semibold" href={communityUrl} target="_blank" rel="noreferrer">Join WhatsApp Community</a>
       </div>
     </div>
   );

@@ -15,3 +15,8 @@ export const REGISTRATION_TYPES = {
   REMINDER: 'reminder',
   LIVE_JOIN: 'live_join',
 } as const;
+
+// Community links per interest/category (default used for all until expanded)
+export const COMMUNITY_LINKS: Record<string, string> = {
+  default: 'https://chat.whatsapp.com/Ck8VbaM9bWi9UvNG4iJYbp',
+};

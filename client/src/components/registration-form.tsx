@@ -83,6 +83,11 @@ export function RegistrationForm({ webinarId, type, onSuccess }: RegistrationFor
             body: JSON.stringify({ email })
           });
         } catch (_e) {}
+        // Also show an immediate community CTA via confirm, then redirect to verify
+        const join = confirm('Join our WhatsApp community to get free webinar updates?');
+        if (join) {
+          window.open('https://chat.whatsapp.com/Ck8VbaM9bWi9UvNG4iJYbp', '_blank');
+        }
         window.location.href = `/verify?email=${encodeURIComponent(email)}`;
       }
 
