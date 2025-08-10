@@ -67,6 +67,71 @@ export class SEOContentGenerator {
       .substring(0, 60);
   }
 
+  private getTopTags(webinars: any[]): string[] {
+    const tagCount = new Map<string, number>();
+    webinars.forEach(webinar => {
+      (webinar.tags || []).forEach(tag => {
+        tagCount.set(tag, (tagCount.get(tag) || 0) + 1);
+      });
+    });
+    
+    return Array.from(tagCount.entries())
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 8)
+      .map(([tag]) => tag);
+  }
+
+  private getRelatedKeywords(category: string): string[] {
+    const keywordMap = {
+      'Technology': ['AI', 'Machine Learning', 'Cloud Computing', 'Cybersecurity', 'DevOps', 'Data Science'],
+      'Business': ['Leadership', 'Marketing', 'Sales', 'Strategy', 'Entrepreneurship', 'Finance'],
+      'Marketing': ['Digital Marketing', 'SEO', 'Content Marketing', 'Social Media', 'Email Marketing', 'Analytics'],
+      'Professional Development': ['Career Growth', 'Soft Skills', 'Communication', 'Time Management', 'Networking']
+    };
+    return keywordMap[category] || ['Skills', 'Training', 'Development', 'Growth', 'Learning', 'Certification'];
+  }
+
+  private getDetailedAudience(category: string, tags: string[]): string {
+    const audienceMap = {
+      'Technology': 'Software developers, IT professionals, tech enthusiasts, and career changers',
+      'Business': 'Entrepreneurs, managers, consultants, and business analysts',
+      'Marketing': 'Digital marketers, content creators, social media managers, and growth hackers',
+      'Professional Development': 'Working professionals, students, and career changers across all industries'
+    };
+    
+    const baseAudience = audienceMap[category] || 'Professionals and learners';
+    const specificSkills = tags.slice(0, 2).join(' and ');
+    return `${baseAudience} interested in ${specificSkills}`;
+  }
+
+  private getRelevanceExplanation(category: string, title: string): string {
+    const explanations = [
+      `This ${category.toLowerCase()} session addresses critical industry challenges and provides practical solutions you can implement immediately.`,
+      `With the rapid evolution in ${category.toLowerCase()}, staying updated with these concepts is essential for career advancement.`,
+      `Industry leaders consistently rank these ${category.toLowerCase()} skills among the most valuable for 2025 and beyond.`,
+      `This topic directly impacts salary growth and job security in the current ${category.toLowerCase()} market.`
+    ];
+    return explanations[Math.floor(Math.random() * explanations.length)];
+  }
+
+  private getTrendExplanation(tag: string, category: string): string {
+    return `${tag} is experiencing massive growth due to industry demand and technological advancement in ${category.toLowerCase()}.`;
+  }
+
+  private getJobMarketImpact(tag: string): string {
+    const impacts = [
+      '15% higher salary potential',
+      '25% more job opportunities',
+      '30% faster hiring process',
+      '20% better job security'
+    ];
+    return impacts[Math.floor(Math.random() * impacts.length)];
+  }
+
+  private getLearningPath(tag: string): string {
+    return `Start with fundamentals → Practice hands-on projects → Join ${tag} communities → Pursue advanced certifications`;
+  }
+
   private async getRecentWebinars(): Promise<WebinarData[]> {
     try {
       const result = await this.callEdgeFunction({

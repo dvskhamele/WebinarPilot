@@ -2,7 +2,11 @@ import { EventbriteScraper } from './eventbrite-scraper';
 import { MeetupScraper } from './meetup-scraper';
 import { DevpostScraper } from './devpost-scraper';
 import { LumaScraper } from './luma-scraper';
+import { WebinarNinjaScraper } from './webinarninja-scraper';
+import { GoToWebinarScraper } from './gotowebinar-scraper';
+import { ZoomWebinarScraper } from './zoom-webinar-scraper';
 import { BaseScraper, ScrapedWebinar } from './base-scraper';
+import { scraperAnalytics } from '../monitoring/scraper-analytics';
 import crypto from 'crypto';
 
 interface ScrapedResult {
@@ -49,6 +53,9 @@ export class ScraperOrchestrator {
       new MeetupScraper(),
       new DevpostScraper(),
       new LumaScraper(),
+      new WebinarNinjaScraper(),
+      new GoToWebinarScraper(),
+      new ZoomWebinarScraper(),
     ];
 
     this.supabaseUrl = process.env.SUPABASE_URL || 'https://brroucjplqmngljroknr.supabase.co';

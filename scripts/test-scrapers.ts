@@ -29,8 +29,13 @@ async function setupDatabase() {
       action: 'create_table',
       table: 'guides'
     });
+
+    await orchestrator['callEdgeFunction']({
+      action: 'create_table',
+      table: 'scraper_analytics'
+    });
     
-    console.log('✅ Database tables created successfully');
+    console.log('✅ Database tables created successfully (including analytics tracking)');
   } catch (error) {
     console.error('❌ Database setup failed:', error);
   }
