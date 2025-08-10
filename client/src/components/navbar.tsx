@@ -56,20 +56,20 @@ export function Navbar({ currentUser, onLogin, onLogout }: NavbarProps) {
               </>
             ) : (
               <>
-                <button 
-                  onClick={onLogin}
+                <Link 
+                  href="/signin"
                   data-testid="button-signin"
                   className="text-sm font-semibold text-gray-600 hover:text-indigo-600"
                 >
                   Sign In
-                </button>
-                <button 
-                  onClick={onLogin}
+                </Link>
+                <Link 
+                  href="/signup"
                   data-testid="button-signup"
                   className="px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Sign Up
-                </button>
+                </Link>
               </>
             )}
           </div>

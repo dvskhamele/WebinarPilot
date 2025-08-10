@@ -12,6 +12,8 @@ import Verify from "@/pages/verify";
 import WebinarDetail from "@/pages/webinar-detail";
 import Dashboard from "@/pages/dashboard";
 import Admin from "@/pages/admin";
+import SignIn from "@/pages/signin";
+import SignUp from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 
 interface User {
@@ -62,6 +64,8 @@ function Router() {
           <Route path="/blog" component={Blog} />
           <Route path="/webinar/:id" component={WebinarDetail} />
           <Route path="/verify" component={Verify} />
+          <Route path="/signin" component={SignIn} />
+          <Route path="/signup" component={SignUp} />
           <Route path="/dashboard">
             {currentUser ? (
               <Dashboard currentUser={currentUser} />
