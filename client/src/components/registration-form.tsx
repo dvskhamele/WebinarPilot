@@ -74,6 +74,16 @@ export function RegistrationForm({ webinarId, type, onSuccess }: RegistrationFor
 
       if (type === 'registration' && data.meetUrl) {
         window.open(data.meetUrl, '_blank');
+        // Continue registration flow: request OTP and navigate to verify
+        const email = (form.getValues() as any).email;
+        try {
+          await fetch('/api/auth/request-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          });
+        } catch (_e) {}
+        window.location.href = `/verify?email=${encodeURIComponent(email)}`;
       }
 
       onSuccess?.(data.meetUrl);

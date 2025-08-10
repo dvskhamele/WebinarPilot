@@ -8,6 +8,7 @@ import { Navbar } from "@/components/navbar";
 import Home from "@/pages/home";
 import Explore from "@/pages/explore";
 import Blog from "@/pages/blog";
+import Verify from "@/pages/verify";
 import WebinarDetail from "@/pages/webinar-detail";
 import Dashboard from "@/pages/dashboard";
 import Admin from "@/pages/admin";
@@ -60,6 +61,7 @@ function Router() {
           <Route path="/explore" component={Explore} />
           <Route path="/blog" component={Blog} />
           <Route path="/webinar/:id" component={WebinarDetail} />
+          <Route path="/verify" component={Verify} />
           <Route path="/dashboard">
             {currentUser ? (
               <Dashboard currentUser={currentUser} />

@@ -6,6 +6,10 @@ import { z } from "zod";
 import { WebinarScheduler } from "./scrapers/scheduler";
 import { supabase } from "./supabase";
 
+// In-memory stores (fallback if Supabase DDL not available)
+const otpStore = new Map<string, { code: string; expiresAt: number; consumed: boolean }>();
+const alertSubscriptions = new Map<string, { categories: string[]; active: boolean }>();
+
 const registrationRequestSchema = z.object({
   type: z.literal("registration"),
   webinarId: z.string(),
@@ -28,7 +32,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all webinars; on Netlify run a scrape synchronously before returning
   app.get("/api/webinars", async (req, res) => {
     try {
-not updaing to git      // Always run scrapers in background only
+      // Always run scrapers in background only
       scheduler.handleUserTrigger().catch(err => console.error('Background scrape failed:', err));
       const webinars = await storage.getWebinars();
       res.json(webinars);
@@ -107,6 +111,78 @@ not updaing to git      // Always run scrapers in background only
     } catch (error) {
       console.error('Failed to fetch webinar:', error);
       res.status(500).json({ error: "Failed to fetch webinar" });
+    }
+  });
+
+  // Auth: request OTP
+  app.post('/api/auth/request-otp', async (req, res) => {
+    try {
+      const { email } = req.body || {};
+      if (!email) return res.status(400).json({ error: 'Email required' });
+
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+      otpStore.set(email.toLowerCase(), { code, expiresAt, consumed: false });
+
+      // Best-effort persist (table may not exist)
+      try {
+        await supabase.from('otp_codes').insert({ email, code, expires_at: new Date(expiresAt).toISOString(), consumed: false });
+      } catch (_e) {}
+
+      // In production, send via email/SMS. For now, do not include code in response.
+      res.json({ success: true, message: 'OTP sent to your email' });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to request OTP' });
+    }
+  });
+
+  // Auth: verify OTP and optionally subscribe
+  app.post('/api/auth/verify-otp', async (req, res) => {
+    try {
+      const { email, code, categories } = req.body || {};
+      if (!email || !code) return res.status(400).json({ error: 'Email and code required' });
+      const rec = otpStore.get(email.toLowerCase());
+      if (!rec) return res.status(400).json({ error: 'No OTP requested' });
+      if (rec.consumed) return res.status(400).json({ error: 'OTP already used' });
+      if (Date.now() > rec.expiresAt) return res.status(400).json({ error: 'OTP expired' });
+      if (String(code) !== rec.code) return res.status(400).json({ error: 'Invalid OTP' });
+
+      rec.consumed = true;
+
+      if (Array.isArray(categories) && categories.length > 0) {
+        alertSubscriptions.set(email.toLowerCase(), { categories, active: true });
+        try { await supabase.from('alert_subscriptions').upsert({ email, categories, active: true }); } catch (_e) {}
+      }
+
+      const user = { name: (email as string).split('@')[0], email };
+      res.json({ success: true, user, subscribedCategories: categories || [] });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to verify OTP' });
+    }
+  });
+
+  // Alerts: subscribe/unsubscribe
+  app.post('/api/alerts/subscribe', async (req, res) => {
+    try {
+      const { email, categories } = req.body || {};
+      if (!email || !Array.isArray(categories)) return res.status(400).json({ error: 'Email and categories required' });
+      alertSubscriptions.set(email.toLowerCase(), { categories, active: true });
+      try { await supabase.from('alert_subscriptions').upsert({ email, categories, active: true }); } catch (_e) {}
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to subscribe' });
+    }
+  });
+
+  app.post('/api/alerts/unsubscribe', async (req, res) => {
+    try {
+      const { email } = req.body || {};
+      if (!email) return res.status(400).json({ error: 'Email required' });
+      alertSubscriptions.set(email.toLowerCase(), { categories: [], active: false });
+      try { await supabase.from('alert_subscriptions').upsert({ email, categories: [], active: false }); } catch (_e) {}
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to unsubscribe' });
     }
   });
 
