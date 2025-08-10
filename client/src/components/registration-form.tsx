@@ -63,7 +63,7 @@ export function RegistrationForm({ webinarId, type, onSuccess }: RegistrationFor
       return await response.json();
     },
     onSuccess: async (data) => {
-N      toast({
+      toast({
         title: type === 'registration' ? 'Registration successful!' : 'Reminder set!',
         description: type === 'registration' 
           ? 'Opening webinar in new tab...' 
@@ -77,11 +77,11 @@ N      toast({
         // Continue registration flow: request OTP and navigate to verify
         const email = (form.getValues() as any).email;
         try {
-          await fetch('/api/auth/request-otp', {
+          fetch('/api/auth/request-otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email })
-          });
+          }).catch(() => {});
         } catch (_e) {}
         // Also show an immediate community CTA via confirm, then redirect to verify
         const join = confirm('Join our WhatsApp community to get free webinar updates?');

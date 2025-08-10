@@ -5,7 +5,6 @@ import { insertUserRegistrationSchema, insertGoogleMeetSessionSchema } from "@sh
 import { z } from "zod";
 import { WebinarScheduler } from "./scrapers/scheduler";
 import { supabase } from "./supabase";
-his interest
 // In-memory stores (fallback if Supabase DDL not available)
 const otpStore = new Map<string, { code: string; expiresAt: number; consumed: boolean }>();
 const alertSubscriptions = new Map<string, { categories: string[]; active: boolean }>();
