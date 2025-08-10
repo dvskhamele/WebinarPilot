@@ -40,6 +40,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Search webinars (triggers background scraping) - MUST be before /:id route
+  app.get("/api/webinars/search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query) {
+        return res.status(400).json({ error: "Search query required" });
+      }
+
+      const webinars = await storage.getWebinars();
+      const searchResults = webinars.filter(w => 
+        w.title?.toLowerCase().includes(query.toLowerCase()) ||
+        w.subtitle?.toLowerCase().includes(query.toLowerCase()) ||
+        w.host?.toLowerCase().includes(query.toLowerCase())
+      );
+
+      // Trigger background scraping for search keyword
+      scheduler.handleUserTrigger(undefined, query).catch(err => 
+        console.error('Search scrape failed:', err)
+      );
+
+      res.json(searchResults);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to search webinars" });
+    }
+  });
+
+  // Category-based webinar search (triggers background scraping)
+  app.get("/api/webinars/category/:category", async (req, res) => {
+    try {
+      const category = req.params.category;
+      const webinars = await storage.getWebinars();
+      const categoryWebinars = webinars.filter(w => 
+        w.category?.toLowerCase() === category.toLowerCase()
+      );
+
+      // Trigger background scraping for this category
+      scheduler.handleUserTrigger(category).catch(err => 
+        console.error('Category scrape failed:', err)
+      );
+
+      res.json(categoryWebinars);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch category webinars" });
+    }
+  });
+
   // Get single webinar (with category-based scraping trigger)
   app.get("/api/webinars/:id", async (req, res) => {
     try {
@@ -172,51 +218,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Category-based webinar search (triggers background scraping)
-  app.get("/api/webinars/category/:category", async (req, res) => {
-    try {
-      const category = req.params.category;
-      const webinars = await storage.getWebinars();
-      const categoryWebinars = webinars.filter(w => 
-        w.category?.toLowerCase() === category.toLowerCase()
-      );
 
-      // Trigger background scraping for this category
-      scheduler.handleUserTrigger(category).catch(err => 
-        console.error('Category scrape failed:', err)
-      );
-
-      res.json(categoryWebinars);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch category webinars" });
-    }
-  });
-
-  // Search webinars (triggers background scraping)
-  app.get("/api/webinars/search", async (req, res) => {
-    try {
-      const query = req.query.q as string;
-      if (!query) {
-        return res.status(400).json({ error: "Search query required" });
-      }
-
-      const webinars = await storage.getWebinars();
-      const searchResults = webinars.filter(w => 
-        w.title?.toLowerCase().includes(query.toLowerCase()) ||
-        w.description?.toLowerCase().includes(query.toLowerCase()) ||
-        w.host?.toLowerCase().includes(query.toLowerCase())
-      );
-
-      // Trigger background scraping for search keyword
-      scheduler.handleUserTrigger(undefined, query).catch(err => 
-        console.error('Search scrape failed:', err)
-      );
-
-      res.json(searchResults);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to search webinars" });
-    }
-  });
 
   // Manual scraper trigger endpoint
   app.post("/api/scrape/trigger", async (req, res) => {
