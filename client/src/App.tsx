@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navbar } from "@/components/navbar";
 import Home from "@/pages/home";
+import Explore from "@/pages/explore";
+import Blog from "@/pages/blog";
 import WebinarDetail from "@/pages/webinar-detail";
 import Dashboard from "@/pages/dashboard";
 import Admin from "@/pages/admin";
@@ -55,6 +57,8 @@ function Router() {
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         <Switch>
           <Route path="/" component={Home} />
+          <Route path="/explore" component={Explore} />
+          <Route path="/blog" component={Blog} />
           <Route path="/webinar/:id" component={WebinarDetail} />
           <Route path="/dashboard">
             {currentUser ? (

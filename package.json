@@ -9,6 +9,10 @@
     "start": "NODE_ENV=production node netlify/functions/api.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
+    "supabase:init": "tsx scripts/init-supabase.ts",
+    "test:e2e": "node -e \"(async()=>{const f=await fetch(process.env.SUPABASE_FUNCTION_URL||'https://brroucjplqmngljroknr.supabase.co/functions/v1/hyper-handler',{method:'POST',headers:{Authorization:`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY||'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJycm91Y2pwbHFtbmdsanJva25yIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDU1ODg0OSwiZXhwIjoyMDcwMTM0ODQ5fQ.vMDzajYZQ8k-AqzTKdM0D5nCsj85XRI7YGObMzVQyOc'}`,'Content-Type':'application/json'},body:JSON.stringify({action:'trigger_scrape',source:'all',trigger_type:'test'}),});console.log('Edge trigger status',f.status);const j=await f.json().catch(()=>({}));console.log('Edge trigger resp',j);})()\"",
+    "deploy-all": "npm run build && netlify deploy --prod && npm run supabase:init && npm run test:e2e",
+    "global:setup": "bash scripts/global/setup-global-backend.sh",
     "deploy:prod": "npm run build && netlify deploy --prod",
     "deploy:dev": "npm run build && netlify deploy"
   },

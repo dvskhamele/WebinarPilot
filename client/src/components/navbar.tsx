@@ -21,7 +21,19 @@ export function Navbar({ currentUser, onLogin, onLogout }: NavbarProps) {
             <span className="text-xl font-bold text-gray-900">WebinarHub</span>
           </Link>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
+            <Link 
+              href="/"
+              className={`text-sm font-medium ${location === '/' ? 'text-indigo-600' : 'text-gray-600 hover:text-indigo-600'}`}
+            >Home</Link>
+            <Link 
+              href="/explore"
+              className={`text-sm font-medium ${location === '/explore' ? 'text-indigo-600' : 'text-gray-600 hover:text-indigo-600'}`}
+            >Explore</Link>
+            <Link 
+              href="/blog"
+              className={`text-sm font-medium ${location === '/blog' ? 'text-indigo-600' : 'text-gray-600 hover:text-indigo-600'}`}
+            >Blog</Link>
             {currentUser ? (
               <>
                 <Link 

@@ -53,22 +53,20 @@ export abstract class BaseScraper {
     return `${cleanHost}-${cleanTitle}`;
   }
 
-  protected convertToWebinar(scraped: ScrapedWebinar): Omit<Webinar, 'createdAt' | 'updatedAt'> {
+  protected convertToWebinar(scraped: ScrapedWebinar): Omit<Webinar, 'createdAt'> {
     return {
       id: this.generateWebinarId(scraped.title, scraped.host),
       title: scraped.title,
-      description: scraped.description,
       host: scraped.host,
       dateTime: scraped.dateTime,
-      duration: scraped.duration,
       category: scraped.category,
-      tags: scraped.tags,
-      isLive: scraped.isLive,
-      isFree: scraped.isFree,
-      maxAttendees: scraped.maxAttendees,
-      registrationUrl: scraped.registrationUrl,
-      meetingUrl: scraped.meetingUrl,
-      imageUrl: scraped.imageUrl,
+      image: scraped.imageUrl || null,
+      meetUrl: scraped.meetingUrl || null,
+      subtitle: scraped.description || null,
+      trainerName: null,
+      trainerTitle: null,
+      trainerBio: null,
+      trainerImage: null,
     };
   }
 
@@ -82,7 +80,7 @@ export abstract class BaseScraper {
     );
   }
 
-  async scrapeAndValidate(): Promise<Omit<Webinar, 'createdAt' | 'updatedAt'>[]> {
+  async scrapeAndValidate(): Promise<Omit<Webinar, 'createdAt'>[]> {
     try {
       console.log(`Starting scrape for ${this.config.name}...`);
       const scraped = await this.scrapeWebinars();

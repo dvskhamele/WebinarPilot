@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertUserRegistrationSchema, insertGoogleMeetSessionSchema } from "@shared/schema";
 import { z } from "zod";
 import { WebinarScheduler } from "./scrapers/scheduler";
+import { supabase } from "./supabase";
 
 const registrationRequestSchema = z.object({
   type: z.literal("registration"),
@@ -27,11 +28,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all webinars; on Netlify run a scrape synchronously before returning
   app.get("/api/webinars", async (req, res) => {
     try {
-      if (process.env.NETLIFY) {
-        await scheduler.handleUserTrigger();
-      } else {
-        scheduler.handleUserTrigger().catch(err => console.error('Background scrape failed:', err));
-      }
+not updaing to git      // Always run scrapers in background only
+      scheduler.handleUserTrigger().catch(err => console.error('Background scrape failed:', err));
       const webinars = await storage.getWebinars();
       res.json(webinars);
     } catch (error) {
@@ -48,11 +46,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Search query required" });
       }
 
-      if (process.env.NETLIFY) {
-        await scheduler.handleUserTrigger(undefined, query);
-      } else {
-        scheduler.handleUserTrigger(undefined, query).catch(err => console.error('Search scrape failed:', err));
+      // Log search query (best effort)
+      try {
+        await supabase.from('search_logs').insert({ query, created_at: new Date().toISOString() });
+      } catch (e) {
+        // Table may not exist; ignore
       }
+
+      // Always run scrapers in background only
+      scheduler.handleUserTrigger(undefined, query).catch(err => console.error('Search scrape failed:', err));
 
       const webinars = await storage.getWebinars();
       const searchResults = webinars.filter(w => 
@@ -73,11 +75,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const category = req.params.category;
 
-      if (process.env.NETLIFY) {
-        await scheduler.handleUserTrigger(category);
-      } else {
-        scheduler.handleUserTrigger(category).catch(err => console.error('Category scrape failed:', err));
-      }
+      // Always run scrapers in background only
+      scheduler.handleUserTrigger(category).catch(err => console.error('Category scrape failed:', err));
 
       const webinars = await storage.getWebinars();
       const categoryWebinars = webinars.filter(w => 
@@ -100,11 +99,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (webinar.category) {
-        if (process.env.NETLIFY) {
-          await scheduler.handleUserTrigger(webinar.category);
-        } else {
-          scheduler.handleUserTrigger(webinar.category).catch(err => console.error('Category-based scrape failed:', err));
-        }
+        // Always run scrapers in background only
+        scheduler.handleUserTrigger(webinar.category).catch(err => console.error('Category-based scrape failed:', err));
       }
       
       res.json(webinar);
@@ -188,6 +184,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Related webinars endpoint
+  app.get('/api/webinars/:id/related', async (req, res) => {
+    try {
+      const target = await storage.getWebinar(req.params.id);
+      if (!target) return res.json([]);
+      const webinars = await storage.getWebinars();
+
+      const stop = new Set(['the','a','an','for','and','or','to','in','on','with','of','by','at','from','this','that','how','learn','free','live','workshop','webinar']);
+      const tokenize = (s: string) => (s || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g,' ')
+        .split(/\s+/)
+        .filter(t => t && !stop.has(t));
+
+      const targetTokens = new Set<string>([...tokenize(target.title), ...tokenize(target.subtitle || '')]);
+
+      const scored = webinars
+        .filter(w => w.id !== target.id)
+        .map(w => {
+          let score = 0;
+          if (w.category && target.category && w.category.toLowerCase() === target.category.toLowerCase()) score += 2;
+          const tokens = new Set<string>([...tokenize(w.title), ...tokenize(w.subtitle || '')]);
+          let overlap = 0;
+          tokens.forEach(t => { if (targetTokens.has(t)) overlap++; });
+          score += overlap;
+          return { w, score };
+        })
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8)
+        .map(x => x.w);
+
+      res.json(scored);
+    } catch (e) {
+      console.error('Failed to get related webinars:', e);
+      res.status(500).json({ error: 'Failed to get related webinars' });
+    }
+  });
+
   // Get registrations for a webinar
   app.get("/api/webinars/:id/registrations", async (req, res) => {
     try {
@@ -225,7 +260,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Blog: list posts
+  app.get("/api/blog", async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("blogs")
+        .select("id,title,slug,content,created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      res.json(data || []);
+    } catch (error: any) {
+      console.error("Failed to fetch blog posts:", error);
+      res.status(500).json({ error: "Failed to fetch blog posts" });
+    }
+  });
 
+  // Blog: single post by slug
+  app.get("/api/blog/:slug", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("blogs")
+        .select("id,title,slug,content,created_at")
+        .eq("slug", req.params.slug)
+        .single();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ error: "Post not found" });
+      res.json(data);
+    } catch (error: any) {
+      console.error("Failed to fetch blog post:", error);
+      if (error?.code === 'PGRST116') return res.status(404).json({ error: "Post not found" });
+      res.status(500).json({ error: "Failed to fetch blog post" });
+    }
+  });
+
+  // Recent searches (best effort if search_logs exists)
+  app.get('/api/searches/recent', async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('search_logs')
+        .select('query, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      // Return unique queries preserving order
+      const seen = new Set<string>();
+      const unique = (data || []).filter((r: any) => {
+        if (seen.has(r.query)) return false; seen.add(r.query); return true;
+      });
+      res.json(unique);
+    } catch (_e) {
+      res.json([]);
+    }
+  });
+
+  // Grouped endpoints
+  app.get('/api/webinars/happening-now', async (_req, res) => {
+    try {
+      const webinars = await storage.getWebinars();
+      const now = Date.now();
+      const twoHours = 2 * 60 * 60 * 1000;
+      const list = webinars.filter(w => {
+        const start = new Date(w.dateTime).getTime();
+        return Math.abs(start - now) <= twoHours || (now >= start && now <= start + twoHours);
+      });
+      res.json(list);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to fetch happening now' });
+    }
+  });
+
+  app.get('/api/webinars/happening-today', async (_req, res) => {
+    try {
+      const webinars = await storage.getWebinars();
+      const today = new Date();
+      const y = today.getFullYear(), m = today.getMonth(), d = today.getDate();
+      const startDay = new Date(y, m, d).getTime();
+      const endDay = new Date(y, m, d + 1).getTime();
+      const list = webinars.filter(w => {
+        const t = new Date(w.dateTime).getTime();
+        return t >= startDay && t < endDay;
+      });
+      res.json(list);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to fetch happening today' });
+    }
+  });
+
+  app.get('/api/webinars/grouped/category', async (_req, res) => {
+    try {
+      const webinars = await storage.getWebinars();
+      const grouped: Record<string, any[]> = {};
+      webinars.forEach(w => {
+        const key = (w.category || 'Uncategorized');
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(w);
+      });
+      res.json(grouped);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to group webinars by category' });
+    }
+  });
 
   // Manual scraper trigger endpoint
   app.post("/api/scrape/trigger", async (req, res) => {

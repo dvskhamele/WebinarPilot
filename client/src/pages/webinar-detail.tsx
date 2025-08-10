@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { CountdownTimer } from '@/components/countdown-timer';
 import { RegistrationForm } from '@/components/registration-form';
 import { Webinar } from '@shared/types';
+import { buildGoogleCalendarUrl, buildICS, downloadICS, extractUrls } from '@/lib/calendar';
 
 export default function WebinarDetail() {
   const [, params] = useRoute('/webinar/:id');
@@ -13,6 +14,9 @@ export default function WebinarDetail() {
 
   const { data: webinar, isLoading } = useQuery<Webinar>({
     queryKey: ['/api/webinars', webinarId],
+    enabled: !!webinarId,
+  })r   const { data: related = [] } = useQuery<Webinar[]>({
+    queryKey: ['/api/webinars', webinarId, 'related'],
     enabled: !!webinarId,
   });
 
@@ -76,8 +80,39 @@ export default function WebinarDetail() {
     { q: "What if I miss the live session?", a: "A recording will be provided to all registered participants." }
   ];
 
+  const calendarUrl = buildGoogleCalendarUrl(webinar, 90);
+  const allUrls = extractUrls(webinar.subtitle, webinar.trainerBio, webinar.meetUrl);
+
   return (
     <div className="space-y-20">
+      {/* Banner with big countdown */}
+      <section className="rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 p-6 md:p-10 text-white">
+        <div className="flex flex-col lg:flex-row items-center gap-8">
+          <div className="flex-1 text-center lg:text-left">
+            <h1 className="text-3xl md:text-5xl font-extrabold" data-testid="text-webinar-title">{webinar.title}</h1>
+            <p className="mt-2 text-indigo-100">Hosted by {webinar.host}</p>
+            <p className="mt-1 text-indigo-100">{new Date(webinar.dateTime).toLocaleString()}</p>
+          </div>
+          <div className="flex-1 w-full bg-white/10 rounded-xl p-4">
+            {isEventLive ? (
+              <div className="text-center">
+                <h2 className="text-2xl font-bold">Live Now</h2>
+                <p className="text-indigo-100">Join the session using the link below.</p>
+              </div>
+            ) : (
+              <div>
+                <h2 className="text-center text-sm uppercase tracking-wider text-indigo-100">Event starts in</h2>
+                <CountdownTimer targetDate={new Date(webinar.dateTime)} onComplete={() => setIsEventLive(true)} />
+                <div className="flex justify-center gap-3">
+                  <a className="px-4 py-2 bg-white text-indigo-700 rounded-md font-semibold" href={calendarUrl} target="_blank" rel="noreferrer">Add to Google Calendar</a>
+                  <button className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-md font-semibold" onClick={() => downloadICS(webinar.title, buildICS(webinar, 90))}>Download .ics</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Header Section */}
       <section className="grid lg:grid-cols-2 gap-12 items-center">
         <div className="text-center lg:text-left">
@@ -87,7 +122,7 @@ export default function WebinarDetail() {
             </Button>
           </Link>
           <span className="inline-block px-4 py-1.5 text-sm font-semibold tracking-wider text-indigo-700 bg-indigo-100 rounded-full uppercase">
-            Hosted by {webinar.host}
+            {webinar.category}
           </span>
           <h1 className="mt-4 text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight" data-testid="text-webinar-title">
             {webinar.title}
@@ -173,6 +208,43 @@ export default function WebinarDetail() {
           </div>
         </div>
       </section>
+
+      {/* Useful Links */}
+      {allUrls.length > 0 && (
+        <section className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold text-gray-900">Useful Links</h2>
+          <ul className="mt-4 list-disc list-inside text-indigo-700">
+            {allUrls.map((u) => (
+              <li key={u}><a className="hover:underline" href={u} target="_blank" rel="noreferrer">{u}</a></li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Related Webinars */}
+      {related.length > 0 && (
+        <section>
+          <h2 className="text-2xl font-bold text-gray-900">Related Webinars</h2>
+          <div className="grid mt-4 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {related.map((w) => (
+              <div key={w.id}>
+                <Link href={`/webinar/${w.id}`}>
+                  <a className="block">
+                    <div className="bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                      <img className="h-40 w-full object-cover" src={w.image || 'https://placehold.co/600x400'} />
+                      <div className="p-4">
+                        <div className="text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 inline-block">{w.category}</div>
+                        <div className="mt-2 text-sm font-semibold text-gray-900 line-clamp-2">{w.title}</div>
+                        <div className="text-xs text-gray-500 mt-1">{new Date(w.dateTime).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  </a>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* FAQ Section */}
       <section className="max-w-4xl mx-auto">
