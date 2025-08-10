@@ -15,7 +15,8 @@ export default function WebinarDetail() {
   const { data: webinar, isLoading } = useQuery<Webinar>({
     queryKey: ['/api/webinars', webinarId],
     enabled: !!webinarId,
-  })r   const { data: related = [] } = useQuery<Webinar[]>({
+  });
+  const { data: related = [] } = useQuery<Webinar[]>({
     queryKey: ['/api/webinars', webinarId, 'related'],
     enabled: !!webinarId,
   });
