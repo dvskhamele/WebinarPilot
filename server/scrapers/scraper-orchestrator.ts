@@ -8,6 +8,7 @@ import { ZoomWebinarScraper } from './zoom-webinar-scraper';
 import { BaseScraper, ScrapedWebinar } from './base-scraper';
 import { scraperAnalytics } from '../monitoring/scraper-analytics';
 import crypto from 'crypto';
+import { storage } from '../storage';
 
 interface ScrapedResult {
   source: string;
@@ -25,21 +26,6 @@ interface ScrapeRequest {
   force?: boolean;
 }
 
-interface SupabaseWebinar {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  platform: string;
-  link: string;
-  description: string;
-  category: string;
-  source: string;
-  checksum: string;
-  last_fetched: string;
-  created_at?: string;
-  updated_at?: string;
-}
 
 export class ScraperOrchestrator {
   private scrapers: BaseScraper[];
@@ -68,25 +54,6 @@ export class ScraperOrchestrator {
     return crypto.createHash('sha256').update(content).digest('hex');
   }
 
-  private convertScrapedToSupabaseFormat(scraped: ScrapedWebinar): SupabaseWebinar {
-    const dateStr = scraped.dateTime.toISOString().split('T')[0];
-    const timeStr = scraped.dateTime.toTimeString().split(' ')[0];
-    
-    return {
-      id: crypto.randomUUID(),
-      title: scraped.title,
-      date: dateStr,
-      time: timeStr,
-      platform: scraped.sourcePlatform,
-      link: scraped.registrationUrl,
-      description: scraped.description,
-      category: scraped.category,
-      source: scraped.sourcePlatform,
-      checksum: this.generateChecksum(scraped.title, dateStr, scraped.sourcePlatform, scraped.sourcePlatform),
-      last_fetched: new Date().toISOString(),
-    };
-  }
-
   private async callEdgeFunction(payload: any): Promise<any> {
     try {
       const response = await fetch(this.edgeFunctionUrl, {
@@ -109,52 +76,12 @@ export class ScraperOrchestrator {
     }
   }
 
-  private async checkIfExists(checksum: string): Promise<boolean> {
+  private async checkIfExistsById(id: string): Promise<boolean> {
     try {
-      const result = await this.callEdgeFunction({
-        action: 'query',
-        table: 'webinars',
-        where: { checksum },
-        limit: 1
-      });
-      return result.data && result.data.length > 0;
+      const existing = await storage.getWebinar(id);
+      return !!existing;
     } catch (error) {
-      console.error('Error checking existing webinar:', error);
-      return false;
-    }
-  }
-
-  private async insertWebinar(webinar: SupabaseWebinar): Promise<boolean> {
-    try {
-      const exists = await this.checkIfExists(webinar.checksum);
-      
-      if (exists) {
-        // Update existing record
-        await this.callEdgeFunction({
-          action: 'update',
-          table: 'webinars',
-          where: { checksum: webinar.checksum },
-          data: {
-            last_fetched: webinar.last_fetched,
-            updated_at: new Date().toISOString()
-          }
-        });
-        return false; // Not a new insert
-      } else {
-        // Insert new record
-        await this.callEdgeFunction({
-          action: 'insert',
-          table: 'webinars',
-          data: {
-            ...webinar,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        });
-        return true; // New insert
-      }
-    } catch (error) {
-      console.error('Error inserting/updating webinar:', error);
+      console.error('Existence check failed:', error);
       return false;
     }
   }
@@ -239,23 +166,21 @@ export class ScraperOrchestrator {
     for (const scraper of scrapersToRun) {
       try {
         console.log(`Running scraper: ${scraper['config']['name']}`);
-        // Use raw scraped data (includes registrationUrl and sourcePlatform)
-        const scrapedRaw = await scraper.scrapeWebinars();
-        // Validate locally (future events with required fields)
-        const validWebinars = scrapedRaw.filter(w =>
-          !!(w && w.title && w.host && w.dateTime && w.registrationUrl && new Date(w.dateTime) > new Date())
-        );
+        // Use validated webinar objects matching our storage schema
+        const validated = await scraper.scrapeAndValidate();
         
         let newCount = 0;
-        for (const webinar of validWebinars) {
-          const supabaseWebinar = this.convertScrapedToSupabaseFormat(webinar);
-          const isNew = await this.insertWebinar(supabaseWebinar);
-          if (isNew) newCount++;
+        for (const webinar of validated) {
+          const exists = await this.checkIfExistsById(webinar.id);
+          if (!exists) {
+            await storage.createWebinar(webinar as any);
+            newCount++;
+          }
         }
 
         const result: ScrapedResult = {
           source: scraper['config']['name'],
-          webinars: validWebinars,
+          webinars: validated,
           success: true,
           count: newCount
         };
@@ -270,7 +195,7 @@ export class ScraperOrchestrator {
           scope,
           newCount,
           'success',
-          `Successfully scraped ${validWebinars.length} webinars, ${newCount} new`
+          `Successfully scraped ${validated.length} webinars, ${newCount} new`
         );
 
       } catch (error) {
