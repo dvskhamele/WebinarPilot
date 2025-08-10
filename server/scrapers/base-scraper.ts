@@ -35,6 +35,7 @@ export abstract class BaseScraper {
   abstract scrapeWebinars(): Promise<ScrapedWebinar[]>;
 
   protected async delay(ms: number): Promise<void> {
+    if (process.env.NETLIFY) return;
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 

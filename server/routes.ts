@@ -24,28 +24,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const scheduler = new WebinarScheduler();
   scheduler.startScheduler();
 
-  // Get all webinars (with background scraping trigger)
+  // Get all webinars; on Netlify run a scrape synchronously before returning
   app.get("/api/webinars", async (req, res) => {
     try {
+      if (process.env.NETLIFY) {
+        await scheduler.handleUserTrigger();
+      } else {
+        scheduler.handleUserTrigger().catch(err => console.error('Background scrape failed:', err));
+      }
       const webinars = await storage.getWebinars();
-      
-      // Trigger background scraping for general webinars
-      scheduler.handleUserTrigger().catch(err => 
-        console.error('Background scrape failed:', err)
-      );
-      
       res.json(webinars);
     } catch (error) {
+      console.error('Failed to fetch webinars:', error);
       res.status(500).json({ error: "Failed to fetch webinars" });
     }
   });
 
-  // Search webinars (triggers background scraping) - MUST be before /:id route
+  // Search webinars; on Netlify run a targeted scrape first
   app.get("/api/webinars/search", async (req, res) => {
     try {
       const query = req.query.q as string;
       if (!query) {
         return res.status(400).json({ error: "Search query required" });
+      }
+
+      if (process.env.NETLIFY) {
+        await scheduler.handleUserTrigger(undefined, query);
+      } else {
+        scheduler.handleUserTrigger(undefined, query).catch(err => console.error('Search scrape failed:', err));
       }
 
       const webinars = await storage.getWebinars();
@@ -55,38 +61,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         w.host?.toLowerCase().includes(query.toLowerCase())
       );
 
-      // Trigger background scraping for search keyword
-      scheduler.handleUserTrigger(undefined, query).catch(err => 
-        console.error('Search scrape failed:', err)
-      );
-
       res.json(searchResults);
     } catch (error) {
+      console.error('Failed to search webinars:', error);
       res.status(500).json({ error: "Failed to search webinars" });
     }
   });
 
-  // Category-based webinar search (triggers background scraping)
+  // Category-based webinar search; on Netlify run a targeted scrape first
   app.get("/api/webinars/category/:category", async (req, res) => {
     try {
       const category = req.params.category;
+
+      if (process.env.NETLIFY) {
+        await scheduler.handleUserTrigger(category);
+      } else {
+        scheduler.handleUserTrigger(category).catch(err => console.error('Category scrape failed:', err));
+      }
+
       const webinars = await storage.getWebinars();
       const categoryWebinars = webinars.filter(w => 
         w.category?.toLowerCase() === category.toLowerCase()
       );
 
-      // Trigger background scraping for this category
-      scheduler.handleUserTrigger(category).catch(err => 
-        console.error('Category scrape failed:', err)
-      );
-
       res.json(categoryWebinars);
     } catch (error) {
+      console.error('Failed to fetch category webinars:', error);
       res.status(500).json({ error: "Failed to fetch category webinars" });
     }
   });
 
-  // Get single webinar (with category-based scraping trigger)
+  // Get single webinar; on Netlify trigger category scrape synchronously if needed
   app.get("/api/webinars/:id", async (req, res) => {
     try {
       const webinar = await storage.getWebinar(req.params.id);
@@ -94,15 +99,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Webinar not found" });
       }
       
-      // Trigger background scraping based on webinar category
       if (webinar.category) {
-        scheduler.handleUserTrigger(webinar.category).catch(err => 
-          console.error('Category-based scrape failed:', err)
-        );
+        if (process.env.NETLIFY) {
+          await scheduler.handleUserTrigger(webinar.category);
+        } else {
+          scheduler.handleUserTrigger(webinar.category).catch(err => console.error('Category-based scrape failed:', err));
+        }
       }
       
       res.json(webinar);
     } catch (error) {
+      console.error('Failed to fetch webinar:', error);
       res.status(500).json({ error: "Failed to fetch webinar" });
     }
   });
