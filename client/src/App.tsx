@@ -83,8 +83,9 @@ function Router() {
       </main>
       
       <footer className="bg-gray-800 text-white mt-20">
-        <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
+        <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center space-y-2">
           <p>&copy; 2025 WebinarHub. All rights reserved.</p>
+          <p className="text-sm text-gray-300">Powered by <a className="underline hover:text-white" href="https://signimus.com" target="_blank" rel="noreferrer">signimus.com</a></p>
         </div>
       </footer>
     </div>

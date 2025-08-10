@@ -32,8 +32,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all webinars; on Netlify run a scrape synchronously before returning
   app.get("/api/webinars", async (req, res) => {
     try {
-      // Always run scrapers in background only
-      scheduler.handleUserTrigger().catch(err => console.error('Background scrape failed:', err));
+      // Always run scrapers in background only; force on user access to ensure new clicks add fresh webinars
+      scheduler.orchestrator.scrapeAll({ triggerType: 'user_action', force: true }).catch(err => console.error('Background scrape failed:', err));
       const webinars = await storage.getWebinars();
       res.json(webinars);
     } catch (error) {
@@ -57,8 +57,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Table may not exist; ignore
       }
 
-      // Always run scrapers in background only
-      scheduler.handleUserTrigger(undefined, query).catch(err => console.error('Search scrape failed:', err));
+      // Always run scrapers in background only; force on user search
+      scheduler.orchestrator.scrapeAll({ keyword: query, triggerType: 'user_action', force: true }).catch(err => console.error('Search scrape failed:', err));
 
       const webinars = await storage.getWebinars();
       const searchResults = webinars.filter(w => 
@@ -79,8 +79,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const category = req.params.category;
 
-      // Always run scrapers in background only
-      scheduler.handleUserTrigger(category).catch(err => console.error('Category scrape failed:', err));
+      // Always run scrapers in background only; force on category access to ensure freshness
+      scheduler.orchestrator.scrapeAll({ category, triggerType: 'user_action', force: true }).catch(err => console.error('Category scrape failed:', err));
 
       const webinars = await storage.getWebinars();
       const categoryWebinars = webinars.filter(w => 
@@ -103,8 +103,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (webinar.category) {
-        // Always run scrapers in background only
-        scheduler.handleUserTrigger(webinar.category).catch(err => console.error('Category-based scrape failed:', err));
+        // Always run scrapers in background only; force when viewing a category webinar for freshness
+        scheduler.orchestrator.scrapeAll({ category: webinar.category, triggerType: 'user_action', force: true }).catch(err => console.error('Category-based scrape failed:', err));
       }
       
       res.json(webinar);
