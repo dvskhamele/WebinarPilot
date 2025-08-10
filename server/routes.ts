@@ -389,6 +389,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Homepage overview combined endpoint
+  app.get('/api/home/overview', async (_req, res) => {
+    try {
+      const webinars = await storage.getWebinars();
+
+      // Happening windows
+      const now = Date.now();
+      const twoHours = 2 * 60 * 60 * 1000;
+      const happeningNow = webinars.filter(w => {
+        const start = new Date(w.dateTime).getTime();
+        return Math.abs(start - now) <= twoHours || (now >= start && now <= start + twoHours);
+      });
+
+      const today = new Date();
+      const y = today.getFullYear(), m = today.getMonth(), d = today.getDate();
+      const startDay = new Date(y, m, d).getTime();
+      const endDay = new Date(y, m, d + 1).getTime();
+      const happeningToday = webinars.filter(w => {
+        const t = new Date(w.dateTime).getTime();
+        return t >= startDay && t < endDay;
+      });
+
+      // Group by category
+      const groupedByCategory: Record<string, any[]> = {};
+      webinars.forEach(w => {
+        const key = (w.category || 'Uncategorized');
+        if (!groupedByCategory[key]) groupedByCategory[key] = [];
+        groupedByCategory[key].push(w);
+      });
+
+      // Recent searches (best effort)
+      let recentSearches: any[] = [];
+      try {
+        const { data } = await supabase
+          .from('search_logs')
+          .select('query, created_at')
+          .order('created_at', { ascending: false })
+          .limit(20);
+        const seen = new Set<string>();
+        recentSearches = (data || []).filter((r: any) => { if (seen.has(r.query)) return false; seen.add(r.query); return true; });
+      } catch (_e) {}
+
+      // Category counts
+      const categoryCounts: Record<string, number> = {};
+      Object.entries(groupedByCategory).forEach(([k, list]) => categoryCounts[k] = list.length);
+
+      // Trim lists for homepage
+      const groupedPreview: Record<string, any[]> = {};
+      Object.entries(groupedByCategory).forEach(([k, list]) => groupedPreview[k] = list.slice(0, 8));
+
+      res.json({
+        happeningNow,
+        happeningToday,
+        groupedByCategory: groupedPreview,
+        categoryCounts,
+        recentSearches
+      });
+    } catch (e) {
+      console.error('overview error', e);
+      res.status(500).json({ error: 'Failed to load overview' });
+    }
+  });
+
   // Grouped endpoints
   app.get('/api/webinars/happening-now', async (_req, res) => {
     try {

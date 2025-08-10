@@ -4,9 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { WebinarCard } from '@/components/webinar-card';
 import { Webinar } from '@shared/types';
-import { CATEGORIES } from '@/lib/constants';
-import { HomeGroups } from '@/components/sections/home-groups';
-
+import { CATEGORIES } from '@/lib/constants'
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -21,9 +19,8 @@ export default function Home() {
     return '/api/webinars';
   }, [searchQuery, selectedCategory]);
 
-  const { data: webinars = [], isLoading } = useQuery<Webinar[]>({
-    queryKey: [apiUrl],
-  });
+  const { data: webinars = [], isLoading } = useQuery<Webinar[]>({ queryKey: [apiUrl] });
+  const { data: overview } = useQuery<{ happeningNow: Webinar[]; happeningToday: Webinar[]; groupedByCategory: Record<string, Webinar[]>; categoryCounts: Record<string, number>; recentSearches: {query: string; created_at: string}[] }>({ queryKey: ['/api/home/overview'] });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,7 +125,55 @@ export default function Home() {
         </div>
       </section>
 
-      <HomeGroups />
+      {/* Groups for all users */}
+      {overview && (
+        <div className="space-y-12">
+          {overview.happeningNow?.length > 0 && (
+            <section>
+              <h2 className="text-2xl font-bold">Happening Now</h2>
+              <div className="grid mt-4 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {overview.happeningNow.map((w) => <WebinarCard key={w.id} webinar={w} />)}
+              </div>
+            </section>
+          )}
+          {overview.happeningToday?.length > 0 && (
+            <section>
+              <h2 className="text-2xl font-bold">Happening Today</h2>
+              <div className="grid mt-4 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {overview.happeningToday.map((w) => <WebinarCard key={w.id} webinar={w} />)}
+              </div>
+            </section>
+          )}
+          {overview.recentSearches?.length > 0 && (
+            <section>
+              <h2 className="text-2xl font-bold">Last searched by users</h2>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {overview.recentSearches.map((s) => (
+                  <span key={`${s.query}-${s.created_at}`} className="px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-700 border border-gray-200">{s.query}</span>
+                ))}
+              </div>
+            </section>
+          )}
+          {overview.groupedByCategory && (
+            <section>
+              <h2 className="text-2xl font-bold">Browse by Category</h2>
+              <div className="mt-4 space-y-8">
+                {Object.entries(overview.groupedByCategory).map(([cat, list]) => (
+                  <div key={cat}>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-gray-800">{cat}</h3>
+                      <span className="text-xs text-gray-500">{overview.categoryCounts?.[cat] || list.length} total</span>
+                    </div>
+                    <div className="grid mt-3 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {list.map((w) => <WebinarCard key={w.id} webinar={w} />)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
 
       {/* Webinar Listings */}
       <section>
