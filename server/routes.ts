@@ -31,7 +31,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all webinars; on Netlify run a scrape synchronously before returning
   app.get("/api/webinars", async (req, res) => {
     try {
-not updaing to git      // Always run scrapers in background only
+      // not updating to git; // Always run scrapers in the background only
       scheduler.handleUserTrigger().catch(err => console.error('Background scrape failed:', err));
       const webinars = await storage.getWebinars();
       res.json(webinars);
