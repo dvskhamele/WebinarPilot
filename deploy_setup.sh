@@ -1,3 +1,17 @@
+#!/bin/bash
+# Exit on any error
+set -e
+
+echo "🚀 Starting setup and deployment..."
+
+# 1. Install correct dependencies
+echo "📦 Installing dependencies..."
+npm install serverless-http
+npm install @babel/preset-typescript --save-dev
+
+# 2. Update package.json
+echo "📝 Updating package.json..."
+cat <<EOP > package.json
 {
   "name": "rest-express",
   "version": "1.0.0",
@@ -5,7 +19,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "vite build && esbuild netlify/functions-src/api.ts --platform=node --packages=external --bundle --format=esm --outfile=netlify/functions/api.js --tsconfig=tsconfig.json",
+    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=netlify/functions/api.js",
     "start": "NODE_ENV=production node netlify/functions/api.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
@@ -93,7 +107,6 @@
     "@types/passport-local": "^1.0.38",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
-    "@types/serverless-http": "^0.0.0",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
@@ -110,3 +123,26 @@
     "bufferutil": "^4.0.8"
   }
 }
+EOP
+
+# 3. Git and GitHub operations
+echo "🐙 Initializing Git, creating repo, and pushing..."
+if [ -d ".git" ]; then
+  echo "Git repository already exists. Committing changes..."
+  git add .
+  git commit -m "Fix build: Correct dependencies for Netlify"
+else
+  echo "Initializing new Git repository..."
+  git init -b main
+  git add .
+  git commit -m "Initial commit"
+fi
+if git remote get-url origin > /dev/null 2>&1; then
+  echo "Remote 'origin' already exists. Pushing to existing remote..."
+else
+  echo "Creating new GitHub repository and setting remote..."
+  gh repo create WebinarPilot --public --source=. --remote=origin
+fi
+git push -u origin main
+
+echo "✅ Done! Your project is now on GitHub and ready for Netlify deployment."
