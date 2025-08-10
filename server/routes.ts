@@ -5,7 +5,7 @@ import { insertUserRegistrationSchema, insertGoogleMeetSessionSchema } from "@sh
 import { z } from "zod";
 import { WebinarScheduler } from "./scrapers/scheduler";
 import { supabase } from "./supabase";
-
+his interest
 // In-memory stores (fallback if Supabase DDL not available)
 const otpStore = new Map<string, { code: string; expiresAt: number; consumed: boolean }>();
 const alertSubscriptions = new Map<string, { categories: string[]; active: boolean }>();
@@ -32,8 +32,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all webinars; on Netlify run a scrape synchronously before returning
   app.get("/api/webinars", async (req, res) => {
     try {
-      // Always run scrapers in background only; force on user access to ensure new clicks add fresh webinars
-      scheduler.orchestrator.scrapeAll({ triggerType: 'user_action', force: true }).catch(err => console.error('Background scrape failed:', err));
+not updaing to git      // Always run scrapers in background only
+      scheduler.handleUserTrigger().catch(err => console.error('Background scrape failed:', err));
       const webinars = await storage.getWebinars();
       res.json(webinars);
     } catch (error) {
@@ -57,8 +57,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Table may not exist; ignore
       }
 
-      // Always run scrapers in background only; force on user search
-      scheduler.orchestrator.scrapeAll({ keyword: query, triggerType: 'user_action', force: true }).catch(err => console.error('Search scrape failed:', err));
+      // Always run scrapers in background only
+      scheduler.handleUserTrigger(undefined, query).catch(err => console.error('Search scrape failed:', err));
 
       const webinars = await storage.getWebinars();
       const searchResults = webinars.filter(w => 
@@ -79,8 +79,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const category = req.params.category;
 
-      // Always run scrapers in background only; force on category access to ensure freshness
-      scheduler.orchestrator.scrapeAll({ category, triggerType: 'user_action', force: true }).catch(err => console.error('Category scrape failed:', err));
+      // Always run scrapers in background only
+      scheduler.handleUserTrigger(category).catch(err => console.error('Category scrape failed:', err));
 
       const webinars = await storage.getWebinars();
       const categoryWebinars = webinars.filter(w => 
@@ -103,8 +103,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (webinar.category) {
-        // Always run scrapers in background only; force when viewing a category webinar for freshness
-        scheduler.orchestrator.scrapeAll({ category: webinar.category, triggerType: 'user_action', force: true }).catch(err => console.error('Category-based scrape failed:', err));
+        // Always run scrapers in background only
+        scheduler.handleUserTrigger(webinar.category).catch(err => console.error('Category-based scrape failed:', err));
       }
       
       res.json(webinar);
@@ -161,13 +161,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Alerts: subscribe/unsubscribe
+  // Alerts: subscribe/unsubscribe and follows
   app.post('/api/alerts/subscribe', async (req, res) => {
     try {
-      const { email, categories } = req.body || {};
-      if (!email || !Array.isArray(categories)) return res.status(400).json({ error: 'Email and categories required' });
-      alertSubscriptions.set(email.toLowerCase(), { categories, active: true });
-      try { await supabase.from('alert_subscriptions').upsert({ email, categories, active: true }); } catch (_e) {}
+      const { email, categories, mentors, companies, topics } = req.body || {};
+      if (!email) return res.status(400).json({ error: 'Email required' });
+      alertSubscriptions.set(email.toLowerCase(), { categories: Array.isArray(categories) ? categories : [], active: true });
+      try {
+        await supabase.from('alert_subscriptions').upsert({ email, categories: Array.isArray(categories) ? categories : [], active: true });
+        if (Array.isArray(mentors)) {
+          for (const m of mentors) await supabase.from('follows').upsert({ email, type: 'mentor', value: m });
+        }
+        if (Array.isArray(companies)) {
+          for (const c of companies) await supabase.from('follows').upsert({ email, type: 'company', value: c });
+        }
+        if (Array.isArray(topics)) {
+          for (const t of topics) await supabase.from('follows').upsert({ email, type: 'topic', value: t });
+        }
+      } catch (_e) {}
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: 'Failed to subscribe' });
@@ -386,69 +397,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(unique);
     } catch (_e) {
       res.json([]);
-    }
-  });
-
-  // Homepage overview combined endpoint
-  app.get('/api/home/overview', async (_req, res) => {
-    try {
-      const webinars = await storage.getWebinars();
-
-      // Happening windows
-      const now = Date.now();
-      const twoHours = 2 * 60 * 60 * 1000;
-      const happeningNow = webinars.filter(w => {
-        const start = new Date(w.dateTime).getTime();
-        return Math.abs(start - now) <= twoHours || (now >= start && now <= start + twoHours);
-      });
-
-      const today = new Date();
-      const y = today.getFullYear(), m = today.getMonth(), d = today.getDate();
-      const startDay = new Date(y, m, d).getTime();
-      const endDay = new Date(y, m, d + 1).getTime();
-      const happeningToday = webinars.filter(w => {
-        const t = new Date(w.dateTime).getTime();
-        return t >= startDay && t < endDay;
-      });
-
-      // Group by category
-      const groupedByCategory: Record<string, any[]> = {};
-      webinars.forEach(w => {
-        const key = (w.category || 'Uncategorized');
-        if (!groupedByCategory[key]) groupedByCategory[key] = [];
-        groupedByCategory[key].push(w);
-      });
-
-      // Recent searches (best effort)
-      let recentSearches: any[] = [];
-      try {
-        const { data } = await supabase
-          .from('search_logs')
-          .select('query, created_at')
-          .order('created_at', { ascending: false })
-          .limit(20);
-        const seen = new Set<string>();
-        recentSearches = (data || []).filter((r: any) => { if (seen.has(r.query)) return false; seen.add(r.query); return true; });
-      } catch (_e) {}
-
-      // Category counts
-      const categoryCounts: Record<string, number> = {};
-      Object.entries(groupedByCategory).forEach(([k, list]) => categoryCounts[k] = list.length);
-
-      // Trim lists for homepage
-      const groupedPreview: Record<string, any[]> = {};
-      Object.entries(groupedByCategory).forEach(([k, list]) => groupedPreview[k] = list.slice(0, 8));
-
-      res.json({
-        happeningNow,
-        happeningToday,
-        groupedByCategory: groupedPreview,
-        categoryCounts,
-        recentSearches
-      });
-    } catch (e) {
-      console.error('overview error', e);
-      res.status(500).json({ error: 'Failed to load overview' });
     }
   });
 

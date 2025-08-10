@@ -62,8 +62,8 @@ export function RegistrationForm({ webinarId, type, onSuccess }: RegistrationFor
       const response = await apiRequest('POST', '/api/webinar-action', payload);
       return await response.json();
     },
-    onSuccess: (data) => {
-      toast({
+    onSuccess: async (data) => {
+N      toast({
         title: type === 'registration' ? 'Registration successful!' : 'Reminder set!',
         description: type === 'registration' 
           ? 'Opening webinar in new tab...' 

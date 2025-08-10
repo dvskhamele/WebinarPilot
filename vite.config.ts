@@ -7,12 +7,10 @@ export default defineConfig({
   plugins: [
     react(),
     runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
+    ...(process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
       ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
+          // Wrap dynamic import in async plugin factory to avoid top-level await in prod build
+          (async () => (await import("@replit/vite-plugin-cartographer")).cartographer())(),
         ]
       : []),
   ],
@@ -27,6 +25,12 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      external: [
+        // Exclude dev-only plugins or any missing optional deps from the bundle
+        "@replit/vite-plugin-cartographer",
+      ],
+    },
   },
   server: {
     fs: {
