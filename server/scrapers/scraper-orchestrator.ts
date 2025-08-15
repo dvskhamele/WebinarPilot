@@ -9,27 +9,13 @@ import { BaseScraper, ScrapedWebinar } from './base-scraper';
 import { scraperAnalytics } from '../monitoring/scraper-analytics';
 import crypto from 'crypto';
 import { storage } from '../storage';
-import fetch from 'node-fetch'; // Make sure you have node-fetch installed
+import { GeminiIntegration } from '../gemini-integration';
 
-interface ScrapedResult {
-  source: string;
-  webinars: any[];
-  success: boolean;
-  error?: string;
-  count: number;
-}
-
-interface ScrapeRequest {
-  sources?: string[];
-  category?: string;
-  keyword?: string;
-  triggerType: 'user_action' | 'daily' | 'manual';
-  force?: boolean;
-}
+// ... (other imports and interfaces) ...
 
 export class ScraperOrchestrator {
   private scrapers: BaseScraper[];
-  private geminiApiKey: string; // Add Gemini API key
+  private gemini: GeminiIntegration;
 
   constructor() {
     this.scrapers = [
@@ -41,10 +27,10 @@ export class ScraperOrchestrator {
       new GoToWebinarScraper(),
       new ZoomWebinarScraper(),
     ];
-    this.geminiApiKey = process.env.GEMINI_API_KEY || ''; // Get API key from environment
+    this.gemini = new GeminiIntegration();
   }
 
-  // ... (rest of the code remains the same until the scrapeAll function) ...
+  // ... (other methods remain the same) ...
 
   async scrapeAll(request: ScrapeRequest): Promise<{
     success: boolean;
@@ -52,41 +38,15 @@ export class ScraperOrchestrator {
     totalNewWebinars: number;
     message: string;
   }> {
-    // ... (rest of the code remains the same until the for loop) ...
+    const results: ScrapedResult[] = [];
+    let totalNewWebinars = 0;
+    const { category, keyword } = request;
 
-    for (const scraper of this.scrapers) {
-      try {
-        // ... (existing code) ...
-
-      } catch (error) {
-        // ... (existing code) ...
-      }
-    }
-
-    // Add Gemini scraping here
+    // Gemini scraping
     try {
-      const geminiResponse = await fetch('/gemini/scrape', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.geminiApiKey}` // Add authorization if needed
-        },
-        body: JSON.stringify({ category, keyword }),
-      });
-
-      if (!geminiResponse.ok) {
-        throw new Error(`Gemini scrape failed: ${geminiResponse.status} ${await geminiResponse.text()}`);
-      }
-
-      const { id } = await geminiResponse.json();
-
-      const geminiDataResponse = await fetch(`/gemini/data/${id}`);
-      if (!geminiDataResponse.ok) {
-        throw new Error(`Gemini data retrieval failed: ${geminiDataResponse.status} ${await geminiDataResponse.text()}`);
-      }
-
-      const geminiWebinars: ScrapedWebinar[] = await geminiDataResponse.json();
-      const geminiValidated = geminiWebinars.map(webinar => ({...webinar, sourcePlatform: 'Gemini'})); // Add sourcePlatform
+      const jobId = await this.gemini.triggerScrape({ category, keyword });
+      const geminiWebinars: ScrapedWebinar[] = await this.gemini.getScrapedData(jobId);
+      const geminiValidated = geminiWebinars.map((webinar) => ({ ...webinar, sourcePlatform: 'Gemini' }));
 
       let geminiNewCount = 0;
       for (const webinar of geminiValidated) {
@@ -104,7 +64,6 @@ export class ScraperOrchestrator {
         count: geminiNewCount,
       });
       totalNewWebinars += geminiNewCount;
-
     } catch (error) {
       console.error('Gemini scraping failed:', error);
       results.push({
@@ -116,7 +75,9 @@ export class ScraperOrchestrator {
       });
     }
 
-    // ... (rest of the code remains the same) ...
+    // ... (other scrapers remain the same) ...
+
+    return { success: true, results, totalNewWebinars, message: 'Scraping completed' };
   }
 
   // ... (rest of the class remains the same) ...
