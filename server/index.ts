@@ -28,15 +28,16 @@ let server: http.Server;
     }
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    const port = parseInt(process.env.PORT || '5001', 10);
-    server.listen({
-      port,
-      host: "0.0.0.0",
-    }, () => {
-      log(`serving on port ${port}`);
-    });
-   }
+  const port = parseInt(process.env.PORT || '3000', 10);
+  server.listen({
+    port,
+    host: "0.0.0.0",
+  }, () => {
+    log(`API server running on port ${port}`);
+    if (process.env.NODE_ENV === 'development') {
+      log(`Vite dev server should be running on 5173`);
+    }
+  });
 })();
 
 export default app;
