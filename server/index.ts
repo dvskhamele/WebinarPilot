@@ -29,11 +29,10 @@ let server: http.Server;
   }
 
   if (process.env.NODE_ENV !== 'production') {
-    const port = parseInt(process.env.PORT || '5000', 10);
+    const port = parseInt(process.env.PORT || '5001', 10);
     server.listen({
       port,
       host: "0.0.0.0",
-      reusePort: true,
     }, () => {
       log(`serving on port ${port}`);
     });
