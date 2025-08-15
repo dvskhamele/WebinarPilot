@@ -66,7 +66,8 @@ export class ScraperOrchestrator {
       });
 
       if (!response.ok) {
-        throw new Error(`Edge function error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Edge function error: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       return await response.json();
@@ -145,16 +146,8 @@ export class ScraperOrchestrator {
     const { sources, category, keyword, triggerType, force = false } = request;
     const scope = category || keyword || 'all';
     
-    // Check caching unless force is true
-    if (!force && await this.shouldSkipScraping(scope)) {
-      console.log(`Skipping scrape for ${scope} - cached results available`);
-      return {
-        success: true,
-        results: [],
-        totalNewWebinars: 0,
-        message: `Cached results returned for ${scope} (scraped within last hour)`
-      };
-    }
+  // Always run scrapers, ignore cache
+  // ...existing code...
 
     const results: ScrapedResult[] = [];
     let totalNewWebinars = 0;
@@ -205,7 +198,7 @@ export class ScraperOrchestrator {
           source: scraper['config']['name'],
           webinars: [],
           success: false,
-          error: error.message,
+          error: (error as any).message,
           count: 0
         };
 
@@ -218,7 +211,7 @@ export class ScraperOrchestrator {
           scope,
           0,
           'error',
-          error.message
+          (error as any).message
         );
       }
     }
